@@ -1,0 +1,6 @@
+Here is a place for you to put custom modules.
+
+Like when/if you make a MAUL registration plugin like on the source servers (When you first register with maul),
+You put it here, and it is automatically loaded with umaul.
+
+I've already made a module that lists all the online admins. (show_admins.lua)
