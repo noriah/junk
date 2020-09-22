@@ -1,0 +1,11 @@
+"AddonInfo"
+{
+	"name"				"ULX Connector for some gaming clan"
+	"version"			"1.02"
+	"up_date"			"21/07/2014"
+	"author_name"			"noriah"
+	"author_email"			"vix@noriah.dev"
+	"author_url"			"noriah.dev"
+	"info"				"phpBB connection tool"
+	"override"			"0"
+}

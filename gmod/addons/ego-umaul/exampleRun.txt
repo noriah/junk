@@ -1,0 +1,105 @@
+
+
+//I've explained whats going on with lines that start with '//'
+//The data that its using for this test is in the README.txt file.
+
+
+[ULIB] Loading SHARED module: umaul_init.lua
+///////////////////////////////
+// eGO MAUL ULib Connector   //
+// Created by noriah         //
+///////////////////////////////
+// Loading UMAUL...          //
+//   defines.lua             //
+//   core .lua               //
+//   mysql.lua               //
+///////////////////////////////
+//   MODULE: show_admins.lua //
+// Load Complete!            //
+///////////////////////////////
+Executing dedicated server config file server.cfg
+Initializing Steam libraries for secure Internet server
+Logging into anonymous gameserver account.
+[UMAUL] MySQL Connection Ready!
+Connection to Steam servers successful.
+   Public IP is 0.0.0.0.
+Assigned anonymous gameserver Steam ID [A-1:1473827843(4485)].
+VAC secure mode is activated.
+    
+
+lua_run PrintTable(ULib.ucl.authed)
+> PrintTable(ULib.ucl.authed)...
+// This is the table the ULX and ULib check for access restrictions and permissions
+
+
+lua_run PrintTable(ULib.ucl.users)
+> PrintTable(ULib.ucl.users)...
+// This is the table ULib uses to read from when a user connects
+// It is also the tabled used to save the users.txt file
+// If there are users in the file, UMaul will take those values as well as setting the users group
+// If the user has no special permissions, they wont be added to the table
+
+Client "noriahbot" connected (10.43.0.2:27005).
+lua_run PrintTable(ULib.ucl.authed)
+> PrintTable(ULib.ucl.authed)...
+1249945797:
+		name	=	noriahbot
+		deny:
+		allow:
+		group	=	superadmin
+// After connecting with a correct ego_maul_pin
+
+lua_run PrintTable(ULib.ucl.users) 
+> PrintTable(ULib.ucl.users)...
+// Still no users here :)
+
+lua_run PrintTable(UMaul.users.list)
+> PrintTable(UMaul.users.list)...
+2:
+		forum_name	=	noriahbot
+		rank	=	superadmin
+		steamid	=	STEAM_0:0:33454113
+// The tabled used by the showadmins.lua file
+// Holds the Forum name, rank, and steamid
+
+Dropped noriahbot from server (Disconnect by user.)
+
+lua_run PrintTable(ULib.ucl.authed) 
+> PrintTable(ULib.ucl.authed)...
+// No users saved here. Successfully un-authenticated
+
+lua_run PrintTable(ULib.ucl.users)  
+> PrintTable(ULib.ucl.users)...
+// Still no users here :)
+
+lua_run PrintTable(UMaul.users.list)
+> PrintTable(UMaul.users.list)...
+// The user has been removed from the table.
+
+/////
+// Here I changed my ego_maul_pin to ""
+
+Client "noriahbot" connected (10.43.0.2:27005).
+lua_run PrintTable(ULib.ucl.authed)                 
+> PrintTable(ULib.ucl.authed)...
+1249945797:
+		group	=	user
+		allow:
+		deny:
+		guest	=	true
+// Incorrect pin so I get put in the user group
+
+lua_run PrintTable(ULib.ucl.users)                  
+> PrintTable(ULib.ucl.users)...
+// Still no users here :)
+
+lua_run PrintTable(UMaul.users.list)                
+> PrintTable(UMaul.users.list)...
+3:
+		forum_name	=	noriahbot
+		rank	=	None
+		steamid	=	STEAM_0:0:33454113
+// Since my pin was incorrect, I was given no rank and put in the user group
+
+Dropped noriahbot from server (Disconnect by user.)
+

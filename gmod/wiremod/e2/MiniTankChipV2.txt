@@ -1,0 +1,493 @@
+@name MiniTankChipV2
+@inputs [Pod Camera Bomb]:wirelink
+@persist [Owner Chip Base Chair]:entity RunHeight Speed BoostMulti SlowFactor Accl Decl TurnSpeed RunOnWater CamMode
+@persist SizeX SizeY SizeZ Fwds Bwds TreadsEnabled AntenaEnabled Zoom RgrDstMax BAPitchMax BARollMax Belt WheelDir TurboSteering
+@persist BMass RangerZ Orient WheelLeftX WheelLeftMidX WheelRightX WheelRightMidX WheelRadius EnableHelp Slow ReverseDir
+@persist WheelFrontY WheelFrontMidY WheelBackY WheelBackMidY JumpHeight Height WheelSpin CheckHeight Boost EnableSound
+@persist EngineSoundPitch [EngineStartSound EngineSound EngineStopSound]:string [GrndAllowAng CamAngle]:angle Interval
+@persist [BaseCenter FrontPos VelDamp NBUp AntenaOnColor AntenaOffColor AntenaBaseColor]:vector CameraZoomSpeed
+
+### Mini Tank Chip V2 By noriah
+### 2013
+
+### This Chip Turns any Prop into a Mini Tank.
+### Place anywhere on the prop to create the treads.
+### Wire an Advanced Pod Controller to the Pod input and If you want the tank to be remote
+### Wire a cam controller to the camera input
+### Runs at about 1400 Ops (Depends on Configuration)
+### What happened to V1? My Steam folder was corrupted. Deleted Everything.
+
+if(first()|dupefinished()){   
+
+    #Configuration
+    #---------------------------------------------------#
+    
+    #MovementConfig
+    RunHeight = 0               #Height You want to Ride At (Leave at 0 for Best Results)
+    Speed = 150                 #Max Speed You want (Without Boost Multiplier)
+    TurnSpeed = 65              #Speed You Want to Turn at
+    TurboSteering = 0           #Faster turning when in turbo mode
+    BoostMulti = 2.5            #The Speed Multiplier when you hit the boost
+    SlowFactor = 0.25           #The Speed Multiplier when you want to go slow
+    Accl = 0.75                 #Acceleration Speed
+    Decl = 2.00                 #Deceleration Speed
+    RunOnWater = 1              #Do You want to be able to drive on water
+    Orient = 2                  #Orientation of the Prop to direction of movement. 0,1, or 2(Auto)
+    ReverseDir = 0              #Change if your going the wrong direction
+    PerformanceMode = 0         #More stable (Not Much) but causes more lag (Leaving this off is just as good as on)
+                                #Turn On for Massive Props
+    
+    FixMass = 0                 #Fix the prop to have a usable mass
+    CameraHeight = 20           #Height of the camera when using a cam controller
+    CameraZoomSpeed = 20        #The Speed at which you zoom in and out
+    EnableHelp = 1              #Do you want instructions when you enter the tank?
+    
+    #Sound Config
+    EnableSound = 1                                       #Do You want sound?
+    EngineSoundPitch = 80                                 #Engine Standard Pitch
+    EngineStartSound = "vehicles/apc/apc_start.wav"       #Sound Made when the Tank Turns On
+    EngineSound = "vehicles/apc/apc_idle_loop.wav"        #Sound Made when Running
+    EngineStopSound = "vehicles/v8/van_stop1.wav"         #Sound Made at shutoff
+    
+    #Tread Config
+    TreadsEnabled = 1                                   #Enable Treads or Not (Turning Off will Cut Down on Ops by about 260)
+    WheelRadius = 1.25                                  #Size Of Wheel
+    WheelWidth = 0.75                                   #Thickness of the wheel
+    WheelSpin = 1                                       #Enable Wheel Spinning (Visual Effect, Turning off will cut down on ops by about 260)
+    GroundOffset = 2                                    #How Far off the ground do you want the treads to be (Also Fix Hovering Treads with negative value)
+    XSpread = 0                                         #Spread apart the treads from the base by this much (Left and Right)
+    YSpread = 0                                         #Spread the wheels in the treads apart by this much
+    HQTreads = 1                                        #Use High Quality Treads or Not
+    TreadMaterial = "phoenix_storms/metalset_1-2"       #Material For the Treads ("" Means No Material)
+    TreadColor = vec(117)                               #Color of the treads
+    
+    #Antena Config
+    AntenaEnabled = 1                   #Enable the Antena or Not
+    AntenaOnColor = vec(0,255,0)        #Color of the Light on the Antena when a user is in the Pod
+    AntenaOffColor = vec(255,0,0)       #Color of the Light on the Antena when no user is in the Pod
+    AntenaBaseColor = vec(0,0,0)        #Antena Base (Stem) Color
+
+    #---------------------------------------------------#
+    
+    #Tank Code Follows
+    ##Don't Edit Unless You know what you are doing.
+    
+    Owner = owner()
+    Chip = entity()
+    Base = Chip:isWeldedTo()
+    
+    if(Base:mass() > 2000 & FixMass){Base:setMass(2000)}
+    
+    BaseCenter = Base:boxCenter()
+    
+    function vector getWorldPos(V:vector){
+        return Base:toWorld(BaseCenter + V)
+    }
+    Zoom = 50
+    CamMode = 0
+    BMass = Base:mass()
+    NBUp = -Base:up()
+    
+    ReverseDir = clamp(ReverseDir, 0, 1)
+    ReverseDir = ReverseDir ? -1 : 1
+    
+    Size = Base:boxSize()/2
+    SizeX = Size:x()
+    SizeY = Size:y()
+    SizeZ = Size:z()
+    
+    #Determine the orientation needed.
+    Orient = clamp(Orient, 0, 2)
+    if(Orient == 2){
+        if(SizeX > SizeY){Orient = 0}else{Orient = 1}
+    }
+    
+    Interval = PerformanceMode ? 10 : 20
+    GrndAllowAng = ang(45,360,45)
+    VelDamp = vec(0.2,0.2,0.5)
+    BAPitchMax = Orient ? 80 : 85
+    BARollMax = Orient ? 85 : 80
+    WheelDir = Orient ? -1 : 1
+    
+    #Determine the front of the tank
+    FrontPos = (Base:boxCenter()*vec(1*ReverseDir,0,0) + (Orient ? vec(1, 0, CameraHeight) : vec(0, 1, CameraHeight)))
+    
+    #Treads AND Ranger Positioning !!!DO NOT EDIT!!!
+    PlateL = clamp((Orient ? SizeY : SizeX)/6, WheelRadius*3 + 0.15, (Orient ? SizeY : SizeX)/6) + (YSpread/12)
+    PlateW = WheelWidth
+    PlateH = 0.02
+    
+    PlateLeftX = Orient ? -SizeX - PlateW*6 - XSpread : 0
+    PlateRightX = -PlateLeftX
+    
+    PlateFrontY = Orient ? 0 : SizeY + PlateW*6 + XSpread
+    PlateBackY = -PlateFrontY
+    
+    RunHeight = clamp(RunHeight, -((WheelRadius*4) + (WheelRadius*3)), 200)
+    PlateTopZ = -SizeZ - RunHeight
+    WheelZ = -((WheelRadius*6)+(PlateH*6) - PlateTopZ - 0.21)
+    PlateBottomZ = WheelZ - (WheelRadius*6) - (PlateH*6) + 0.21
+    
+    Height = (Belt ? PlateH*24 : 0) + WheelRadius*12 + abs(PlateTopZ)
+    if(SizeZ*2 < Height){
+        Height += min(0,RunHeight)
+    }
+    
+    if(WheelRadius > 3.1){
+        Height -= min(0,RunHeight)
+    }
+    
+    Height += GroundOffset
+    CheckHeight = Height + RunHeight + max(SizeZ, PlateTopZ)*2 + 5 + WheelRadius*6
+    
+    PlateAngles = Orient ? ang(0,90,0) : ang(0,0,0)
+    PlateColor = TreadColor
+    PlateShape = HQTreads ? "hq_rcube_thin" : "cube"
+    
+    WheelH = PlateW
+    
+    WheelLeftX = Orient ? PlateLeftX : -PlateL*6
+    WheelLeftMidX = Orient ? WheelLeftX : 0
+    WheelRightX = -WheelLeftX
+    WheelRightMidX = Orient ? WheelRightX : 0
+    
+    WheelFrontY = Orient ? PlateL*6 : PlateFrontY
+    WheelFrontMidY = Orient ? 0 : WheelFrontY
+    WheelBackY = -WheelFrontY
+    WheelBackMidY = Orient ? 0 : WheelBackY
+    
+    WheelAngles = Orient ? ang(90,0,0) : ang(90,90,0)
+    WheelColor = TreadColor
+    WheelShape = HQTreads ? "hq_rcylinder_thin" : "cylinder"
+    
+    ### Create the Tread Holos
+    if(TreadsEnabled){
+    
+        ### Left Side
+        holoCreate(1,getWorldPos(vec(PlateLeftX, PlateFrontY, PlateTopZ)),vec(PlateL, PlateW, PlateH),Base:toWorld(PlateAngles),PlateColor,PlateShape)
+        holoCreate(2,getWorldPos(vec(WheelLeftX, WheelFrontY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(3,getWorldPos(vec(WheelLeftMidX, WheelFrontMidY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(4,getWorldPos(vec(WheelLeftX, WheelBackY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(5,getWorldPos(vec(PlateLeftX, PlateFrontY, PlateBottomZ)),vec(PlateL, PlateW, PlateH),Base:toWorld(PlateAngles),PlateColor,PlateShape)
+         
+        ### Right Side
+        holoCreate(6,getWorldPos(vec(PlateRightX, PlateBackY, PlateTopZ)),vec(PlateL, PlateW, PlateH),Base:toWorld(PlateAngles),PlateColor,PlateShape)
+        holoCreate(7,getWorldPos(vec(WheelRightX, WheelFrontY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(8,getWorldPos(vec(WheelRightMidX, WheelBackMidY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(9,getWorldPos(vec(WheelRightX, WheelBackY, WheelZ)),vec(WheelRadius, WheelRadius, WheelH),Base:toWorld(WheelAngles),WheelColor,WheelShape)
+        holoCreate(10,getWorldPos(vec(PlateRightX, PlateBackY, PlateBottomZ)),vec(PlateL, PlateW, PlateH),Base:toWorld(PlateAngles),PlateColor,PlateShape)
+        
+        for(I = 1, 10, 1 ){
+            if(TreadMaterial){
+                holoMaterial(I,TreadMaterial)
+            }
+            holoParent(I,Base)
+        }
+    }
+    
+    ### Antena
+    if(AntenaEnabled){
+        AntenaX = (Orient ? -SizeX : -SizeX) + 0.85
+        AntenaY = (Orient ? -SizeY : SizeY) + 0.85
+        AntenaZ = SizeZ + 11.75
+        
+        AntenaR = 0.05
+        
+        LightZ = SizeZ + 24.35
+    
+        holoCreate(11,getWorldPos(vec(AntenaX,AntenaY,AntenaZ)),vec(AntenaR,AntenaR,2),Base:toWorld(ang()),AntenaBaseColor,"hq_cylinder")
+        holoCreate(12,getWorldPos(vec(AntenaX,AntenaY,LightZ)),vec(AntenaR,AntenaR,0.1),Base:toWorld(ang()),AntenaOffColor,"hq_cylinder")
+        holoShadow(12,0)
+        holoRenderFX(12,14)
+        holoParent(12,11)
+        holoParent(11,Base)
+    }
+    
+    RgrDstMax = Height*4
+    RangerZ = max(SizeZ, PlateTopZ)
+    
+    rangerPersist(1)
+    rangerHitEntities(1)
+    rangerHitWater(RunOnWater)
+    
+    function ranger getRangerData(X,Y,Z){
+        return rangerOffset(RgrDstMax,getWorldPos(vec(X,Y,Z)),NBUp)
+    }
+    
+    Boost = 1
+    Slow = 1
+    CamAngle = (Orient ? ang(0,90,0) : ang())*ReverseDir
+    
+    setName("Mini Tank Chip V2
+    By noriah")
+    
+}
+
+interval(Interval)
+
+### Get Pod Controls
+Active = Pod["Active",number]
+
+Chair = Pod["Entity",entity]
+
+W = Pod["W",number]
+A = Pod["A",number]
+S = Pod["S",number]
+D = Pod["D",number]
+
+Brake = Pod["Space",number]
+Shift = Pod["Shift",number]
+Alt = Pod["Alt",number]
+
+Reload = Pod["R",number]
+
+M1 = Pod["Mouse1",number]
+M2 = Pod["Mouse2",number]
+
+Zuum = Pod["Zoom",number]
+
+### Base Position and Angle
+
+rangerFilter(players())
+
+NBUp = -Base:up()
+
+#Get the Positon and Distance to the ground from the 4 corner wheels
+FrontLeft = getRangerData(WheelRightX,WheelFrontY,RangerZ)
+FLD = FrontLeft:distance()
+FLP = FrontLeft:position()
+
+FrontRight = getRangerData(WheelRightX,WheelBackY,RangerZ)
+FRD = FrontRight:distance()
+FRP = FrontRight:position()
+
+BackLeft = getRangerData(WheelLeftX,WheelFrontY,RangerZ)
+BLD = BackLeft:distance()
+BLP = BackLeft:position()
+
+BackRight = getRangerData(WheelLeftX,WheelBackY,RangerZ)
+BRD = BackRight:distance()
+BRP = BackRight:position()
+
+BAngles = Base:angles()
+BAPitch = BAngles:pitch()
+BARoll = BAngles:roll()
+BPos = Base:boxCenterW()
+BVel = Base:vel()
+BVelZ = BVel:z()
+BVelLen = BVel:length()
+
+#Get the Average Height + Needed Height from the rangers
+AvgHi = ((FLP + FRP + BLP + BRP)/4):z() + Height + JumpHeight
+#Dertermine if we are on a wall or not
+FaceUp = ((abs(BAPitch) < BAPitchMax) & (abs(BARoll) < BARollMax))
+
+#Determine if the wheels are on the ground
+OnGround = (((((FLD + FRD + BLD + BRD)/4) < (CheckHeight + JumpHeight)) |
+    (BAngles > GrndAllowAng) |
+    (BAngles < -GrndAllowAng)) & FaceUp)
+
+#Calculate the Amount of force needed to rotate the tank at the current speed
+MultiP = (20 - clamp(BVelLen*0.03,5,19))
+Pitch = (((FLD + FRD)/2) - ((BLD + BRD)/2))*MultiP
+Roll = (((FRD + BRD)/2) - ((FLD + BLD)/2))*MultiP
+
+if(changed(Shift) & Shift){
+    if(Boost == 1){
+        Boost = BoostMulti
+        Chair:hintDriver("Turbo Activated!", 4)
+    }else{
+        Boost = 1
+        Chair:hintDriver("Turbo Deactivated!", 4)
+    }
+}
+
+if(changed(Alt) & Alt){
+    if(Slow == 1){
+        Slow = SlowFactor
+        Chair:hintDriver("SlowMode Activated!", 4)
+    }else{
+        Slow = 1
+        Chair:hintDriver("SlowMode Deactivated!", 4)
+    }
+}
+
+SpeedChange = Boost * Slow * !Brake
+TurnChange = (TurboSteering ? Boost : 1) * Slow * !Brake
+
+if(Active){Yaw = ((A - D) * TurnSpeed * TurnChange)}else{Yaw = 0}
+
+#Rotate the Tank to Calculated Pitch, Yaw, and Roll
+Base:applyAngForce((ang(Pitch,Yaw,Roll) - (Base:angVel()/2)) * BMass * 5)
+
+#If We are on the ground or at least not on a wall do the following
+if(OnGround){
+
+    AngleRollDir = clamp((Orient ? BARoll : BAPitch) * 2 * Speed * (BMass / 1200000 + 0.01),(-Speed/2),(Speed/2))
+    
+    #If pressing W or S, use Acceleration Factor, else use Deceleration Factor
+    Aclr = (W|S)? Accl : Decl
+    
+    Fwds =  clamp(Fwds + (S - !S*2) * Aclr,0,Speed * 0.65 + AngleRollDir)
+    Bwds = clamp(Bwds + (W - !W*2) * Aclr,0,Speed - AngleRollDir)
+    
+    
+    #Calculate the Forwards/Backwards Force to move the Tank
+    MainForce = (Orient ? -Base:right() : Base:forward()) * (Bwds - Fwds) * BMass * SpeedChange * ReverseDir
+    
+    #Calculate the Force needed to keep the tank at correct height
+    ZForce = (vec(0, 0, clamp(AvgHi - BPos:z(), -5, 20))*20 - (BVel * VelDamp)) * BMass
+    
+    #Apply the Movement and Z Force
+    Base:applyForce(MainForce + ZForce)
+    
+    
+    #Wheel Spins
+    if(TreadsEnabled & WheelSpin & Owner:ping() < 100){
+        
+        FBCh = WheelDir*(W - S)*BVelLen/(WheelRadius*12)
+        LRCh = (A - D)*2
+        
+        SpinLeft = (FBCh + LRCh)
+        SpinRight = (FBCh - LRCh)
+        
+        if(Orient){
+            
+            SpinLeftA = (qRotation(holoEntity(2):up(),SpinLeft)*quat(holoEntity(2))):toAngle()
+            SpinRightA = (qRotation(holoEntity(7):up(),SpinRight)*quat(holoEntity(7))):toAngle()
+        
+            holoAng(2, SpinLeftA)
+            holoAng(7, SpinRightA)
+            
+            holoAng(3, SpinLeftA)
+            holoAng(8, SpinRightA)
+            
+            holoAng(4, SpinLeftA)
+            holoAng(9, SpinRightA)
+            
+        }else{
+            
+            SpinLeftA = (qRotation(holoEntity(7):up(),SpinRight)*quat(holoEntity(7))):toAngle()
+            SpinRightA = (qRotation(holoEntity(9):up(),SpinLeft)*quat(holoEntity(9))):toAngle()
+            
+            holoAng(7, SpinLeftA)
+            holoAng(9, SpinRightA)
+            
+            holoAng(3, SpinLeftA)
+            holoAng(8, SpinRightA)
+            
+            holoAng(2, SpinLeftA)
+            holoAng(4, SpinRightA)
+            
+        }
+    }
+
+}else{
+    #If we are on a wall or flipped, then try and correct
+    if(!FaceUp){Base:applyForce(NBUp*(sign(BVelZ) == 1 ? -BVelZ * (BMass/6) : 0))}
+    Base:applyAngForce((-BAngles:setYaw(-Yaw)*(FaceUp ? (BMass/4)*10 : BMass*7)) - (-Base:angVel()*10))
+}
+
+#Added for fun, wire an explosive to the bomb input and use the Right Mouse Button to detonate.
+Bomb["Detonate",number] = (changed(M2) & M2 ? 1 : 0)
+
+#Little Added Feature, Hold your Light Button to make the tank move up
+if(Pod["Light",number]){JumpHeight = JumpHeight + 2}else{JumpHeight = 0}
+
+#Check has entered/left the tank seat
+if(changed(Active)){
+    #If entered, Play the start sound, set the antena color to On (If Enabled), and display the help messages
+    if(Active){
+        if(EnableSound){
+            Base:soundPlay(1, 7, EngineStartSound)
+            soundPitch(1, EngineSoundPitch)
+            timer("run", 3700)
+        }
+        if(AntenaEnabled){holoColor(12,AntenaOnColor)}
+        if(EnableHelp){
+            Chair:hintDriver("noriah's Mini Tank V2",6)
+            Chair:hintDriver("Controls - Movement: W A S D, Space: Brake",6)
+            Chair:hintDriver("Controls - Shift: Boost, Alt: Slow, F: Jump",6)
+            if(Bomb["Damage",number]){
+                Chair:hintDriver("Bomb - RMB: Explode",6)
+            }
+            Chair:hintDriver("Camera - Reload: Change View, Scroll Wheel: Zoom", 6)
+        }
+    
+    #If left, play the shutdown sound, purge the Sound Table, and Set the antena color to off (If Enabled)
+    }else{
+        if(EnableSound){
+            Base:soundPlay(3, 1, EngineStopSound)
+            soundStop(1)
+            soundStop(2)
+            timer("purge",500)
+        }
+        if(AntenaEnabled){holoColor(12,AntenaOffColor)}
+        CamMode = 0
+    }
+}
+
+#Set the camera activated or not
+if(changed(Reload) & Reload){
+    if(CamMode == 0){
+        CamMode = 1
+        Chair:hintDriver("Camera Mode: 1 - Orbit",4)
+    }elseif(CamMode == 1){
+        CamMode = 2
+        Chair:hintDriver("Camera Mode: 2 - Fixed",4)
+    }else{
+        CamMode = 0
+        Chair:hintDriver("Camera Mode: 0 - Off",4)
+    }
+}
+
+Camera["Activated",number] = CamMode > 0
+#If there is a camera connected, send info to it
+if(Camera["On",number]){
+    
+    if(CamMode == 1){
+        Zoom = clamp(Zoom + (Pod["NextWeapon",number] - Pod["PrevWeapon",number])*CameraZoomSpeed, 20, 1000)
+        #Set the camera position
+        Elev = Pod["Elevation",number]
+        Bear = Pod["Bearing",number]
+        PX = BPos:x() + -Zoom * cos(Elev) * cos(Bear)
+        PY = BPos:y() + -Zoom * cos(Elev) * sin(Bear)
+        PZ = BPos:z() + -Zoom * sin(Elev)
+        Camera["Position",vector] = vec(PX,PY,PZ)
+        #Set the camera direction
+        Camera["Pitch",number] = -Elev
+        Camera["Yaw",number] = Bear
+        Camera["Angle",angle] = ang(-Elev,Bear,0)
+    }else{
+        CamAngTmp = Base:toWorld(CamAngle)
+        Camera["Position",vector] = Base:toWorld(FrontPos)
+        Camera["Pitch",number] = CamAngTmp:pitch()
+        Camera["Yaw",number] = CamAngTmp:yaw()
+        Camera["Angle",angle] = CamAngTmp
+    }
+    #Don't forget to set that parent
+    Camera["Parent",entity] = Base
+}
+
+if(EnableSound){
+
+    #After the start sound has played, play the engine noise
+    if(clk("run") & Active){
+        soundStop(1)
+        Base:soundPlay(2, 0, EngineSound)
+    }
+    
+    #After the stop sound has played, purge the Sound Table
+    if(clk("purge") & !Active){
+        soundPurge()
+    }
+    
+    #Adjust the pitch of the engine noise to the current speed
+    soundPitch(2,clamp((sqrt(BVelLen)*4.5),EngineSoundPitch,150) * Active)
+}
+
+#Incase something screwed up, pressing your zoom button will reset the expression
+if(changed(Zuum) & Zuum){
+    reset()
+}
+
